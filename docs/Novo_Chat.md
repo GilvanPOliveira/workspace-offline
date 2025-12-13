@@ -1,4 +1,5 @@
 Para iniciar uma nova Task:
+
 [WorkspaceOffline]
 Quero a Task X.Y (conforme docs/01-Roadmap-Tasks.md).
 Aja como TL e me entregue APENAS:
