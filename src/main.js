@@ -1,4 +1,4 @@
-import { AppShell  } from "./ui/layouts/AppSchell";
+import { AppShell  } from "./ui/layouts/AppShell";
 
 const root = document.querySelector("#app");
 
