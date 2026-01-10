@@ -1,44 +1,37 @@
-import { verifyToken } from "./jwt.js";
+import { createToken, verifyToken } from "./jwt.js";
 
-const SESSION_TOKEN_KEY = "auth_token";
-const DEBUG_PASSWORD_KEY = "debug_password";
+const TOKEN_KEY = "wo_session_token";
+const SECRET_KEY = "wo_session_key"; // didático (Task 3.4/4.x pode mudar)
+const CREATED_AT = "wo_session_created_at";
 
-let sessionKey = null;
+export function setSession({ email, password, key }) {
+  // didático: guarda também senha/chave dentro do payload pra você exibir no Settings (Task 3.2)
+  const payload = { email, password, key, iat: Date.now() };
+  const token = createToken(payload, key);
 
-export function setSessionKey(key) {
-  sessionKey = key;
+  localStorage.setItem(TOKEN_KEY, token);
+  localStorage.setItem(SECRET_KEY, key);
+  localStorage.setItem(CREATED_AT, new Date().toISOString());
+
+  return payload;
 }
 
-export function clearSessionKey() {
-  sessionKey = null;
-}
+export function getSession() {
+  const token = localStorage.getItem(TOKEN_KEY);
+  const key = localStorage.getItem(SECRET_KEY);
+  if (!token || !key) return null;
 
-export function setSessionToken(token) {
-  sessionStorage.setItem(SESSION_TOKEN_KEY, token);
-}
-
-export function getSessionToken() {
-  return sessionStorage.getItem(SESSION_TOKEN_KEY);
-}
-
-export function clearSession() {
-  sessionStorage.removeItem(SESSION_TOKEN_KEY);
-  sessionStorage.removeItem(DEBUG_PASSWORD_KEY);
-  clearSessionKey();
-}
-
-export async function getSession() {
-  const token = getSessionToken();
-  if (!token) return null;
-
-  // Sessão é volátil (refresh perde a key) — igual seu texto no Dashboard
-  if (!sessionKey) return null;
-
-  const payload = await verifyToken(token, sessionKey);
-  if (!payload) {
+  const { ok, payload } = verifyToken(token, key);
+  if (!ok) {
     clearSession();
     return null;
   }
 
-  return { token, payload };
+  return payload;
+}
+
+export function clearSession() {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(SECRET_KEY);
+  localStorage.removeItem(CREATED_AT);
 }

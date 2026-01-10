@@ -33,7 +33,7 @@ export default function Dashboard() {
       <div class="border rounded p-4">
         <h2 class="text-xl font-bold">Status</h2>
         <p class="text-muted mt-1">
-          Área protegida por sessão local (token HS256). Refresh pede login novamente.
+          Área protegida por sessão local (token). Refresh deve manter sessão.
         </p>
       </div>
     </main>
@@ -47,18 +47,17 @@ export default function Dashboard() {
     window.location.hash = "#/login";
   });
 
-  (async () => {
-    const session = await getSession();
-    if (!session) {
-      window.location.hash = "#/login";
-      return;
-    }
+  // ✅ getSession() retorna o payload direto (ou null)
+  const session = getSession();
+  if (!session) {
+    window.location.hash = "#/login";
+    return section;
+  }
 
-    const email = session.payload.email || session.payload.sub || "";
-    const name = getNameFromEmail(email);
+  const email = session.email || session.sub || "";
+  const name = getNameFromEmail(email);
 
-    sessionLine.textContent = `Logado como: ${name}`;
-  })();
+  sessionLine.textContent = `Logado como: ${name}`;
 
   return section;
 }

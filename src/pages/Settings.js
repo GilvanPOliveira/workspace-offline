@@ -1,7 +1,5 @@
 import { getSession, clearSession } from "../auth/session.js";
 
-const DEBUG_PASSWORD_KEY = "debug_password";
-
 export default function Settings() {
   const section = document.createElement("section");
   section.className = "p-8 max-w-3xl mx-auto";
@@ -36,10 +34,11 @@ export default function Settings() {
         <ul class="mt-3 space-y-1">
           <li><span class="font-bold">Logado com:</span> <span id="debug-email">—</span></li>
           <li><span class="font-bold">Senha:</span> <span id="debug-password">—</span></li>
+          <li><span class="font-bold">Chave:</span> <span id="debug-key">—</span></li>
         </ul>
 
         <p class="text-muted text-sm mt-3">
-          A senha só aparece em DEV (sessionStorage).
+          (Dev) Estes dados vêm da sessão local.
         </p>
       </div>
     </main>
@@ -50,27 +49,29 @@ export default function Settings() {
 
   const debugEmail = section.querySelector("#debug-email");
   const debugPassword = section.querySelector("#debug-password");
+  const debugKey = section.querySelector("#debug-key");
 
   logoutBtn.addEventListener("click", () => {
     clearSession();
     window.location.hash = "#/login";
   });
 
-  (async () => {
-    const session = await getSession();
-    if (!session) {
-      window.location.hash = "#/login";
-      return;
-    }
+  // ✅ getSession() retorna o payload direto (ou null)
+  const session = getSession();
+  if (!session) {
+    window.location.hash = "#/login";
+    return section;
+  }
 
-    const email = session.payload.email || session.payload.sub || "";
-    sessionLine.textContent = `Logado como: ${email}`;
+  const email = session.email || session.sub || "";
+  const password = session.password ?? "(não disponível)";
+  const key = session.key ?? "(não disponível)";
 
-    const password = sessionStorage.getItem(DEBUG_PASSWORD_KEY);
+  sessionLine.textContent = `Logado como: ${email}`;
 
-    debugEmail.textContent = email;
-    debugPassword.textContent = password ?? "(não disponível)";
-  })();
+  debugEmail.textContent = email;
+  debugPassword.textContent = password;
+  debugKey.textContent = key;
 
   return section;
 }

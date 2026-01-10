@@ -1,118 +1,136 @@
 import { getSession } from "../auth/session.js";
 
-const ROUTES = {
-  "/": {
-    title: "Workspace Offline — Home",
-    component: () => import("../pages/Home.js"),
-    public: true,
-  },
-  "/login": {
-    title: "Workspace Offline — Login",
-    component: () => import("../pages/Login.js"),
-    public: true,
-  },
-  "/app": {
-    title: "Workspace Offline — Dashboard",
-    component: () => import("../pages/Dashboard.js"),
-    auth: true,
-  },
-  "/settings": {
-    title: "Workspace Offline — Settings",
-    component: () => import("../pages/Settings.js"),
-    auth: true,
-  },
-  "/help": {
-    title: "Workspace Offline — Help",
-    component: () => import("../pages/Help.js"),
-    public: true,
-  },
-  "/404": {
-    title: "Workspace Offline — 404",
-    component: () => import("../pages/NotFound.js"),
-    public: true,
-  },
-};
-
-function normalizePath(raw) {
-  let path = raw || "/";
-
-  // remove querystring (?x=1)
-  path = path.split("?")[0];
-
-  // garante que começa com "/"
-  if (!path.startsWith("/")) path = `/${path}`;
-
-  // remove barra final (exceto "/")
-  if (path.length > 1) path = path.replace(/\/+$/, "");
-
+function getPathFromHash() {
+  const h = location.hash || "#/";
+  const raw = h.startsWith("#") ? h.slice(1) : h;
+  const q = raw.indexOf("?");
+  const path = q === -1 ? raw : raw.slice(0, q);
   return path || "/";
 }
 
-function getPath() {
-  return normalizePath(window.location.hash.slice(1));
+function setTitle(title) {
+  document.title = title ? `${title} • Workspace Offline` : "Workspace Offline";
 }
 
-function renderError(container, path, err) {
-  container.innerHTML = `
-    <section class="p-8 max-w-3xl mx-auto">
-      <h1 class="text-3xl font-bold text-primary">Erro ao carregar página</h1>
-      <p class="text-muted mt-2">A rota <b>${path}</b> quebrou ao executar.</p>
-      <pre class="mt-4 border rounded p-3 overflow-auto" style="white-space:pre-wrap">${String(
-        err?.stack || err
-      )}</pre>
-      <p class="text-muted text-sm mt-4">Abra o Console (F12) para mais detalhes.</p>
-      <div class="mt-4 flex gap-2">
-        <a href="#/" class="px-4 py-2 bg-primary text-white rounded hover:bg-primary-hover">Home</a>
-        <a href="#/login" class="px-4 py-2 bg-primary text-white rounded hover:bg-primary-hover">Login</a>
-      </div>
-    </section>
+function renderError(outlet, err, path) {
+  console.error("[router] erro ao renderizar:", path, err);
+
+  outlet.innerHTML = "";
+  const box = document.createElement("section");
+  box.className = "p-8 max-w-3xl mx-auto";
+  box.innerHTML = `
+    <h1 class="text-2xl font-bold text-danger">Erro ao carregar página</h1>
+    <p class="mt-2 text-muted">A rota <strong>${path}</strong> quebrou ao executar.</p>
+    <pre class="mt-4 p-4 rounded border overflow-auto text-sm">${String(
+      err?.message || err
+    )}</pre>
+    <div class="mt-4 flex gap-2">
+      <a class="px-4 py-2 rounded bg-primary text-white" href="#/">Home</a>
+      <a class="px-4 py-2 rounded border" href="#/login">Login</a>
+    </div>
   `;
+  outlet.appendChild(box);
 }
 
-async function renderRoute(path) {
-  const route = ROUTES[path] || ROUTES["/404"];
-  document.title = route.title;
+const routes = [
+  {
+    path: "/",
+    title: "Home",
+    auth: false,
+    load: () => import("../pages/Home.js"),
+  },
+  {
+    path: "/login",
+    title: "Login",
+    auth: false,
+    load: () => import("../pages/Login.js"),
+  },
+  {
+    path: "/app",
+    title: "Dashboard",
+    auth: true,
+    load: () => import("../pages/Dashboard.js"),
+  },
+  {
+    path: "/settings",
+    title: "Settings",
+    auth: true,
+    load: () => import("../pages/Settings.js"),
+  },
+  {
+    path: "/help",
+    title: "Ajuda",
+    auth: false,
+    load: () => import("../pages/Help.js"),
+  },
+  {
+    path: "/404",
+    title: "404",
+    auth: false,
+    load: () => import("../pages/NotFound.js"),
+  },
+];
 
-  const container = document.querySelector("#app-content");
-  if (!container) throw new Error("Router container #app-content not found (AppShell não montou?)");
-
-  try {
-    const { default: Page } = await route.component();
-    container.innerHTML = "";
-    container.appendChild(Page());
-    container.focus();
-  } catch (err) {
-    console.error("[router] erro ao renderizar:", path, err);
-    renderError(container, path, err);
-  }
+function matchRoute(path) {
+  return routes.find((r) => r.path === path) || routes.find((r) => r.path === "/404");
 }
 
-async function router() {
-  const path = getPath();
-  const route = ROUTES[path];
+function goLoginWithNext(path) {
+  const next = encodeURIComponent(path);
+  location.hash = `#/login?next=${next}`;
+}
 
-  // rota inexistente
-  if (!route) {
-    await renderRoute("/404");
+async function render(outlet) {
+  const path = getPathFromHash();
+  const route = matchRoute(path);
+
+  // Guard: área logada
+  if (route.auth && !getSession()) {
+    goLoginWithNext(path);
     return;
   }
 
-  // guard
-  if (route.auth) {
-    const session = await getSession();
-    if (!session) {
-      window.location.hash = "#/login";
-      return;
-    }
+  // se já logado e tentar abrir login, manda pro app
+  if (route.path === "/login" && getSession()) {
+    location.hash = "#/app";
+    return;
   }
 
-  await renderRoute(path);
+  try {
+    setTitle(route.title);
+
+    const mod = await route.load();
+    const Page = mod.default;
+
+    outlet.innerHTML = "";
+    outlet.appendChild(Page());
+  } catch (err) {
+    renderError(outlet, err, route.path);
+  }
 }
 
-function initRouter() {
-  const run = () => router().catch((err) => console.error("[router] fatal:", err));
-  window.addEventListener("hashchange", run);
-  run();
-}
+/**
+ * ✅ O main.js espera essa função existir: initRouter()
+ */
+export function initRouter() {
+  // tenta achar um outlet "padrão" sem depender do AppShell exato
+  const outlet =
+    document.querySelector("[data-router-outlet]") ||
+    document.querySelector("#outlet") ||
+    document.querySelector("main") ||
+    document.querySelector("#app");
 
-export { initRouter };
+  if (!outlet) {
+    throw new Error(
+      "Router: não encontrei outlet. Crie um container (ex: <main id='outlet'></main>) no AppShell."
+    );
+  }
+
+  window.addEventListener("hashchange", () => render(outlet));
+  render(outlet);
+
+  return {
+    navigate: (path) => (location.hash = `#${path}`),
+    render: () => render(outlet),
+  };
+}
